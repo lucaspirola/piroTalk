@@ -1,0 +1,7 @@
+sounddevice
+evdev
+openai-whisper
+openvino
+torch
+numpy
+PyGObject
