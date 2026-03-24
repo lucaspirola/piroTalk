@@ -7,6 +7,7 @@ import whisper
 import openvino as ov
 
 WHISPER_MODEL = "base"
+LANGUAGE = "en"  # Set to None to auto-detect and transcribe in original language
 CACHE_DIR = os.path.expanduser("~/.cache/whisper")
 OV_DIR = os.path.join(CACHE_DIR, "openvino")
 
@@ -58,7 +59,7 @@ class NpuTranscriber:
         self.model.encoder.forward = lambda _mel: audio_features
 
         # Decoder on CPU
-        options = whisper.DecodingOptions(language="en", fp16=False)
+        options = whisper.DecodingOptions(language=LANGUAGE, fp16=False)
         result = whisper.decode(self.model, mel, options)
 
         # Restore
