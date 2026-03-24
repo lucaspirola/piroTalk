@@ -214,25 +214,33 @@ def setup_logging():
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, "mic.log")
 
+    real_stderr = sys.stderr
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[
             logging.FileHandler(log_file),
-            logging.StreamHandler(sys.stderr),
+            logging.StreamHandler(real_stderr),
         ],
     )
-    # Redirect print() to logger as well
+
     class LogWriter:
         def __init__(self, level):
             self.level = level
-            self.buffer = ""
+            self.buf = ""
         def write(self, msg):
-            if msg.strip():
-                self.level(msg.strip())
+            self.buf += msg
+            while "\n" in self.buf:
+                line, self.buf = self.buf.split("\n", 1)
+                if line.strip():
+                    self.level(line)
         def flush(self):
-            pass
+            if self.buf.strip():
+                self.level(self.buf.strip())
+            self.buf = ""
+
     sys.stdout = LogWriter(logging.info)
     sys.stderr = LogWriter(logging.warning)
 
