@@ -31,6 +31,18 @@ A system tray icon shows the current state:
 
 ## Installation
 
+**Quick install** (installs dependencies, sets permissions, enables autostart):
+
+```bash
+git clone https://github.com/lucaspirola/mic.git
+cd mic
+./install.sh
+```
+
+**Log out and back in** after install for group changes to take effect.
+
+**Manual install** if you prefer:
+
 ```bash
 # System packages
 sudo apt-get install -y ffmpeg libportaudio2 gir1.2-ayatanaappindicator3-0.1
@@ -38,18 +50,10 @@ sudo apt-get install -y ffmpeg libportaudio2 gir1.2-ayatanaappindicator3-0.1
 # Python packages
 pip install --break-system-packages sounddevice evdev openai-whisper openvino torch numpy PyGObject
 
-# Add your user to the input group (required for hotkey detection and virtual keyboard)
+# Permissions
 sudo usermod -aG input $USER
-# Make uinput accessible (required for virtual keyboard output)
-sudo chmod 0666 /dev/uinput
-```
-
-**Log out and back in** after the group change.
-
-To make the `/dev/uinput` permission persistent across reboots:
-
-```bash
 echo 'KERNEL=="uinput", MODE="0666"' | sudo tee /etc/udev/rules.d/99-uinput.rules
+sudo chmod 0666 /dev/uinput
 ```
 
 ## Usage
@@ -61,6 +65,8 @@ python3 mic.py
 1. Wait for the tray icon to turn **green**
 2. Hold **Pause** key and speak
 3. Release — transcribed text appears at your cursor
+
+The daemon auto-starts on login after running `install.sh`. Logs are written to `~/.local/share/mic/mic.log`.
 
 ## Configuration
 

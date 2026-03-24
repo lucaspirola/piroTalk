@@ -4,8 +4,10 @@ NPU Voice-to-Type daemon.
 Hold Pause key to dictate, transcribes on Intel NPU, types into focused app.
 """
 
+import logging
 import os
 import signal
+import sys
 import threading
 
 import gi
@@ -206,5 +208,35 @@ class VoiceTypeDaemon:
             pass
 
 
+def setup_logging():
+    """Configure logging to file and stderr."""
+    log_dir = os.path.expanduser("~/.local/share/mic")
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, "mic.log")
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler(sys.stderr),
+        ],
+    )
+    # Redirect print() to logger as well
+    class LogWriter:
+        def __init__(self, level):
+            self.level = level
+            self.buffer = ""
+        def write(self, msg):
+            if msg.strip():
+                self.level(msg.strip())
+        def flush(self):
+            pass
+    sys.stdout = LogWriter(logging.info)
+    sys.stderr = LogWriter(logging.warning)
+
+
 if __name__ == "__main__":
+    setup_logging()
     VoiceTypeDaemon().run()
