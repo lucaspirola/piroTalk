@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
 """
-NPU Voice-to-Type daemon.
-Hold Pause key to dictate, transcribes on Intel NPU, types into focused app.
+Voice-to-Type daemon.
+Hold Pause key to dictate, transcribes audio, types into focused app.
 """
 
 import logging
@@ -18,7 +17,6 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("AyatanaAppIndicator3", "0.1")
 from gi.repository import GLib, Gtk, AyatanaAppIndicator3
 
-from transcriber import NpuTranscriber
 from typer import Typer
 
 # --- Configuration ---
@@ -32,13 +30,14 @@ ICON_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
 LOADING = "loading"
 READY = "ready"
 RECORDING = "recording"
-TRANSCRIBING = "transcribing"
+ENCODING = "encoding"
+DECODING = "decoding"
 
 
 class VoiceTypeDaemon:
-    def __init__(self):
+    def __init__(self, transcriber_class):
         self.state = LOADING
-        self.transcriber = NpuTranscriber()
+        self.transcriber = transcriber_class()
         self.typer = Typer()
         self.audio_buffer = []
         self.stream = None
@@ -98,9 +97,11 @@ class VoiceTypeDaemon:
 
     def process_audio(self, audio):
         """Transcribe audio and type result. Runs in worker thread."""
-        self.set_state(TRANSCRIBING)
+        self.set_state(ENCODING)
         try:
-            text = self.transcriber.transcribe(audio)
+            encoder_out = self.transcriber.encode(audio)
+            self.set_state(DECODING)
+            text = self.transcriber.decode(encoder_out)
             if text:
                 print(f"[mic] \"{text}\"")
                 self.typer.type_text(text)
@@ -183,9 +184,7 @@ class VoiceTypeDaemon:
     def load_model_async(self):
         """Load model in background thread, then transition to READY."""
         def _load():
-            print("Loading whisper model and compiling NPU encoder...")
             self.transcriber.load()
-            print("Model ready.")
             self.set_state(READY)
 
         threading.Thread(target=_load, daemon=True).start()
@@ -208,11 +207,11 @@ class VoiceTypeDaemon:
             pass
 
 
-def setup_logging():
+def setup_logging(name="mic"):
     """Configure logging to file and stderr."""
     log_dir = os.path.expanduser("~/.local/share/mic")
     os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, "mic.log")
+    log_file = os.path.join(log_dir, f"{name}.log")
 
     real_stderr = sys.stderr
 
@@ -245,6 +244,3 @@ def setup_logging():
     sys.stderr = LogWriter(logging.warning)
 
 
-if __name__ == "__main__":
-    setup_logging()
-    VoiceTypeDaemon().run()
