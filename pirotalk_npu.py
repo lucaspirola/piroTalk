@@ -10,5 +10,5 @@ from mic import VoiceTypeDaemon, setup_logging
 from transcriber_npu import NpuTranscriber
 
 if __name__ == "__main__":
-    setup_logging("mic_npu")
+    setup_logging("pirotalk_npu")
     VoiceTypeDaemon(NpuTranscriber).run()

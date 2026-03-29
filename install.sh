@@ -38,8 +38,8 @@ if [ "$MODE" = "igpu" ]; then
     echo "Installing Python packages into .venv..."
     "${SCRIPT_DIR}/.venv/bin/pip" install -r "${SCRIPT_DIR}/requirements.txt"
 
-    LAUNCHER="${SCRIPT_DIR}/.venv/bin/python3 ${SCRIPT_DIR}/mic_igpu.py"
-    LOG_FILE="mic_igpu.log"
+    LAUNCHER="${SCRIPT_DIR}/.venv/bin/python3 ${SCRIPT_DIR}/pirotalk_igpu.py"
+    LOG_FILE="pirotalk_igpu.log"
 
 else
     # NPU mode: Whisper with system Python
@@ -47,8 +47,8 @@ else
     echo "Installing Python packages (system-wide)..."
     pip3 install --break-system-packages -r "${SCRIPT_DIR}/requirements_npu.txt"
 
-    LAUNCHER="/usr/bin/python3 ${SCRIPT_DIR}/mic_npu.py"
-    LOG_FILE="mic_npu.log"
+    LAUNCHER="/usr/bin/python3 ${SCRIPT_DIR}/pirotalk_npu.py"
+    LOG_FILE="pirotalk_npu.log"
 fi
 
 # Input group (needed by both modes for the Pause key listener)
@@ -85,12 +85,12 @@ if [ "$MODE" = "igpu" ]; then
     echo "  3. Run the quantizer (one-time, takes 10-20 min):"
     echo "       ./quantize.py"
     echo "  4. Start the daemon:"
-    echo "       ./mic_igpu.py &"
+    echo "       ./pirotalk_igpu.py &"
     echo ""
     echo "The daemon will auto-start on next login."
 else
     echo "To start now:"
-    echo "  python3 ${SCRIPT_DIR}/mic_npu.py &"
+    echo "  python3 ${SCRIPT_DIR}/pirotalk_npu.py &"
     echo ""
     echo "The daemon will auto-start on next login."
 fi

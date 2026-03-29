@@ -43,7 +43,7 @@ class Typer:
     def __init__(self):
         pass
 
-    def type_text(self, text):
+    def type_text(self, text, window_id=None):
         if not text:
             return
 
@@ -57,7 +57,14 @@ class Typer:
         GLib.idle_add(_set_clipboard)
         done.wait(timeout=2.0)
 
+        if window_id:
+            subprocess.run(["xdotool", "windowfocus", "--sync", window_id], check=False)
+
         subprocess.run(_paste_cmd(), check=False)
+
+    def send_enter(self):
+        cmd = _paste_cmd()
+        subprocess.run(cmd[:-1] + ["Return"], check=False)
 
     def close(self):
         pass

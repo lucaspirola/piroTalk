@@ -10,5 +10,5 @@ from mic import VoiceTypeDaemon, setup_logging
 from transcriber_igpu import CohereTranscriber
 
 if __name__ == "__main__":
-    setup_logging("mic_igpu")
+    setup_logging("pirotalk_igpu")
     VoiceTypeDaemon(CohereTranscriber).run()

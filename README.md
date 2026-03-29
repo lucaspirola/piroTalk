@@ -1,6 +1,7 @@
-# mic - Voice-to-Type for Linux
+# piroTalk - Voice-to-Type for Linux
 
-Hold a key, speak, release — transcribed text appears wherever your cursor is.
+Hold **Pause**, speak, release — transcribed text appears wherever your cursor is.
+The hold-to-talk key is configurable (see [Changing the hotkey](#changing-the-hotkey)).
 
 Runs entirely on local hardware. Two backends available:
 
@@ -33,7 +34,7 @@ Runs entirely on local hardware. Two backends available:
 ### 1. Clone and install dependencies
 
 ```bash
-git clone https://github.com/lucaspirola/mic.git
+git clone https://github.com/lucaspirola/piroTalk.git
 cd mic
 ./install.sh
 ```
@@ -75,7 +76,7 @@ To force a re-export (e.g. after changing `MODEL_ID`):
 ### 4. Run
 
 ```bash
-./mic_igpu.py
+./pirotalk_igpu.py
 ```
 
 Wait for the tray icon to turn **green**, then hold **Pause** to dictate.
@@ -86,7 +87,7 @@ Wait for the tray icon to turn **green**, then hold **Pause** to dictate.
 
 ```bash
 ./install.sh --npu
-python3 mic_npu.py
+python3 pirotalk_npu.py
 ```
 
 No quantization step needed — Whisper exports automatically on first run
@@ -103,16 +104,19 @@ Release Pause → encoder runs on iGPU or NPU (~0.5s)
                   ↓
               decoder runs on iGPU or CPU (~0.2s)
                   ↓
-              text pasted into focused app via clipboard
+              text pasted into the window that was focused
+              when you started holding the key
 ```
+
+You can freely switch windows while waiting — the text will always land in the app you were in when you pressed Pause.
 
 A system tray icon shows the current state:
 
 - **Grey** — loading model
 - **Green** — ready
 - **Red** — recording
-- **Yellow (encoding)** — encoder running
-- **Yellow (decoding)** — decoder running
+- **Blue** — encoder running
+- **Orange** — decoder running
 
 ---
 
@@ -124,11 +128,33 @@ Edit constants at the top of each file:
 |---|---|---|---|
 | `mic.py` | `HOTKEY_CODE` | `119` (Pause) | evdev keycode for hold-to-talk |
 | `mic.py` | `MIC_DEVICE` | `FHD Camera Microphone` | Microphone name substring to match |
+| `mic.py` | `AUTO_ENTER` | `False` | Press Enter automatically after each dictation |
 | `transcriber_igpu.py` | `MODEL_ID` | *(your path)* | Path to CohereASR model |
 | `transcriber_igpu.py` | `LANGUAGE` | `en` | Target language code |
 | `transcriber_igpu.py` | `OV_DEVICE` | `GPU` | OpenVINO device (`GPU`, `CPU`) |
 | `transcriber_npu.py` | `WHISPER_MODEL` | `base` | Whisper model size (`tiny`–`large`) |
 | `transcriber_npu.py` | `LANGUAGE` | `en` | Target language (`None` = auto-detect) |
+
+### Changing the hotkey
+
+Run this to find the evdev keycode for any key on your keyboard:
+
+```bash
+python3 -c "
+import evdev, selectors
+devs = [evdev.InputDevice(p) for p in evdev.list_devices()]
+sel = selectors.DefaultSelector()
+for d in devs: sel.register(d, selectors.EVENT_READ)
+print('Press the key you want to use...')
+for key, _ in sel.select():
+    for e in key.data.read():
+        if e.type == evdev.ecodes.EV_KEY and e.value == 1:
+            print(f'HOTKEY_CODE = {e.code}  # {evdev.ecodes.KEY[e.code]}')
+            raise SystemExit
+"
+```
+
+Then set `HOTKEY_CODE` and `HOTKEY_NAME` in `mic.py` to match.
 
 ---
 
@@ -140,8 +166,8 @@ mic.py              Shared orchestrator: GTK tray icon, state machine,
                     VoiceTypeDaemon(transcriber_class) accepts any
                     transcriber with load() / encode() / decode().
 
-mic_igpu.py         Launcher: iGPU mode (CohereASR via OpenVINO)
-mic_npu.py          Launcher: NPU mode (Whisper via OpenVINO)
+pirotalk_igpu.py         Launcher: iGPU mode (CohereASR via OpenVINO)
+pirotalk_npu.py          Launcher: NPU mode (Whisper via OpenVINO)
 
 transcriber_igpu.py CohereASR: Parakeet encoder on iGPU, Cohere decoder
                     on iGPU. INT4 weight quantization via NNCF.
@@ -159,8 +185,8 @@ quantize.py         One-time export script: downloads model, exports
 ## Logs
 
 ```
-~/.local/share/mic/mic_igpu.log
-~/.local/share/mic/mic_npu.log
+~/.local/share/mic/pirotalk_igpu.log
+~/.local/share/mic/pirotalk_npu.log
 ```
 
 ---

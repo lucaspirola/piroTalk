@@ -6,6 +6,7 @@ Hold Pause key to dictate, transcribes audio, types into focused app.
 import logging
 import os
 import signal
+import subprocess
 import sys
 import threading
 
@@ -24,6 +25,7 @@ HOTKEY_NAME = "KEY_PAUSE"
 HOTKEY_CODE = 119
 SAMPLE_RATE = 16000
 MIC_DEVICE = "FHD Camera Microphone"
+AUTO_ENTER = False  # Set to True to press Enter automatically after each dictation
 ICON_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
 
 # --- State ---
@@ -43,6 +45,7 @@ class VoiceTypeDaemon:
         self.stream = None
         self.mic_device_index = None
         self.indicator = None
+        self._target_window = None
         self._find_mic()
 
     def _find_mic(self):
@@ -95,7 +98,7 @@ class VoiceTypeDaemon:
 
     # --- Transcription + typing ---
 
-    def process_audio(self, audio):
+    def process_audio(self, audio, target_window=None):
         """Transcribe audio and type result. Runs in worker thread."""
         self.set_state(ENCODING)
         try:
@@ -104,7 +107,9 @@ class VoiceTypeDaemon:
             text = self.transcriber.decode(encoder_out)
             if text:
                 print(f"[mic] \"{text}\"")
-                self.typer.type_text(text)
+                self.typer.type_text(text, window_id=target_window)
+                if AUTO_ENTER:
+                    self.typer.send_enter()
         except Exception as e:
             print(f"[mic] Error: {e}")
         self.set_state(READY)
@@ -150,13 +155,16 @@ class VoiceTypeDaemon:
                         continue
 
                     if event.value == 1 and self.state == READY:
+                        r = subprocess.run(["xdotool", "getactivewindow"],
+                                           capture_output=True, text=True)
+                        self._target_window = r.stdout.strip() if r.returncode == 0 else None
                         print("[mic] Recording...")
                         self.start_recording()
                     elif event.value == 0 and self.state == RECORDING:
                         audio = self.stop_recording()
                         if audio is not None and len(audio) > SAMPLE_RATE * 0.3:
                             threading.Thread(target=self.process_audio,
-                                             args=(audio,),
+                                             args=(audio, self._target_window),
                                              daemon=True).start()
                         else:
                             self.set_state(READY)
