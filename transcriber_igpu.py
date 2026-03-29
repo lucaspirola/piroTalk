@@ -247,7 +247,7 @@ class CohereTranscriber:
             outputs = self.model.generate(
                 **inputs,
                 encoder_outputs=encoder_outputs,
-                max_new_tokens=80,
+                max_new_tokens=448,
                 use_cache=False,
             )
         result = self.processor.decode(outputs, skip_special_tokens=True)

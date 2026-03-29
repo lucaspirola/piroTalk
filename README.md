@@ -1,37 +1,36 @@
-# mic - NPU Voice-to-Type for Linux
+# mic - Voice-to-Type for Linux
 
-Hold a key, speak, release — your words appear wherever your cursor is. Speech recognition runs on the Intel NPU via OpenVINO, keeping your CPU and GPU free.
+Hold a key, speak, release — transcribed text appears wherever your cursor is.
 
-Supports **100 languages** with automatic translation to English — speak in any language and get English text output. Or set it to transcribe in the original language.
+Runs entirely on local hardware. Two backends available:
 
-## How it works
+| Mode | Model | Hardware | Quality |
+|---|---|---|---|
+| **iGPU** (default) | CohereASR 2B (Parakeet + Cohere decoder) | Intel integrated GPU | High accuracy, 14 languages |
+| **NPU** | Whisper | Intel NPU (Arrow Lake / Meteor Lake) | Fast, 100 languages |
 
-```
-Hold Pause key → record from microphone
-                      ↓
-Release Pause  → whisper encoder runs on Intel NPU (~0.12s)
-                      ↓
-                 whisper decoder runs on CPU (~0.16s)
-                      ↓
-                 text typed into focused app via virtual keyboard
-```
-
-A system tray icon shows the current state:
-- **Grey** — loading model
-- **Green** — ready
-- **Red** — recording
-- **Yellow** — transcribing
+---
 
 ## Requirements
 
-- Ubuntu 24.04 (Wayland/GNOME)
-- Intel CPU with NPU (Arrow Lake / Lunar Lake / Meteor Lake)
+- **OS**: Ubuntu 24.04 (X11 session)
+- **Common**: `xdotool`, `libportaudio2`, `gir1.2-ayatanaappindicator3-0.1`
+
+**iGPU mode** additionally requires:
+- Intel integrated GPU (Gen 12+ recommended — Arc, Xe, or recent Core Ultra)
+- OpenVINO 2026+ GPU driver (`intel_gpu` via Mesa or oneAPI)
+- ~1.4 GB iGPU VRAM for the INT4 quantized models
+- ~8 GB free disk space to download the model from Hugging Face
+
+**NPU mode** additionally requires:
+- Intel NPU (Arrow Lake / Lunar Lake / Meteor Lake)
 - NPU driver installed (`intel_vpu` kernel module, `/dev/accel/accel0` present)
-- Python 3.12+
 
-## Installation
+---
 
-**Quick install** (installs dependencies, sets permissions, enables autostart):
+## Quick Start — iGPU (default)
+
+### 1. Clone and install dependencies
 
 ```bash
 git clone https://github.com/lucaspirola/mic.git
@@ -39,64 +38,132 @@ cd mic
 ./install.sh
 ```
 
-**Log out and back in** after install for group changes to take effect.
+This creates a `.venv` and installs all Python dependencies into it.
 
-**Manual install** if you prefer:
-
-```bash
-# System packages
-sudo apt-get install -y ffmpeg libportaudio2 gir1.2-ayatanaappindicator3-0.1
-
-# Python packages
-pip install --break-system-packages sounddevice evdev openai-whisper openvino torch numpy PyGObject
-
-# Permissions
-sudo usermod -aG input $USER
-echo 'KERNEL=="uinput", MODE="0666"' | sudo tee /etc/udev/rules.d/99-uinput.rules
-sudo chmod 0666 /dev/uinput
-```
-
-## Usage
+### 2. Download the model
 
 ```bash
-python3 mic.py
+pip install huggingface-hub
+huggingface-cli download CohereLabs/cohere-transcribe-03-2026 \
+    --local-dir ~/models/cohere-transcribe-03-2026
 ```
 
-1. Wait for the tray icon to turn **green**
-2. Hold **Pause** key and speak
-3. Release — transcribed text appears at your cursor
+Then update `MODEL_ID` in `transcriber_igpu.py` to match your path:
 
-The daemon auto-starts on login after running `install.sh`. Logs are written to `~/.local/share/mic/mic.log`.
+```python
+MODEL_ID = "/home/yourname/models/cohere-transcribe-03-2026"
+```
+
+### 3. Quantize to INT4 (one-time, ~15 min)
+
+The model is 2B parameters (~8 GB in FP32). We export it to OpenVINO and
+compress weights to INT4, reducing iGPU memory usage from ~3.7 GB to ~1.4 GB:
+
+```bash
+./quantize.py
+```
+
+This exports and quantizes both the encoder (~1.1 GB) and decoder (~87 MB)
+to `~/.cache/cohere-asr/openvino/`. Only needs to run once.
+
+To force a re-export (e.g. after changing `MODEL_ID`):
+
+```bash
+./quantize.py --force
+```
+
+### 4. Run
+
+```bash
+./mic_igpu.py
+```
+
+Wait for the tray icon to turn **green**, then hold **Pause** to dictate.
+
+---
+
+## Quick Start — NPU
+
+```bash
+./install.sh --npu
+python3 mic_npu.py
+```
+
+No quantization step needed — Whisper exports automatically on first run
+(~30 seconds for the `base` model).
+
+---
+
+## How it works
+
+```
+Hold Pause → record from microphone
+                  ↓
+Release Pause → encoder runs on iGPU or NPU (~0.5s)
+                  ↓
+              decoder runs on iGPU or CPU (~0.2s)
+                  ↓
+              text pasted into focused app via clipboard
+```
+
+A system tray icon shows the current state:
+
+- **Grey** — loading model
+- **Green** — ready
+- **Red** — recording
+- **Yellow (encoding)** — encoder running
+- **Yellow (decoding)** — decoder running
+
+---
 
 ## Configuration
 
-Edit the constants at the top of each file:
+Edit constants at the top of each file:
 
 | File | Constant | Default | Description |
 |---|---|---|---|
-| `mic.py` | `HOTKEY_CODE` | `119` (Pause) | evdev keycode for the hold-to-talk key |
-| `mic.py` | `MIC_DEVICE` | `FHD Camera Microphone` | Microphone name substring |
-| `transcriber.py` | `WHISPER_MODEL` | `base` | Whisper model size (`tiny`, `base`, `small`, `medium`, `large`) |
-| `transcriber.py` | `LANGUAGE` | `en` | Target language code — forces translation to that language. Set to `None` to auto-detect and transcribe in the original language |
-| `typer.py` | `DVORAK_MAP` | Dvorak-intl | Keyboard layout character-to-keycode map |
+| `mic.py` | `HOTKEY_CODE` | `119` (Pause) | evdev keycode for hold-to-talk |
+| `mic.py` | `MIC_DEVICE` | `FHD Camera Microphone` | Microphone name substring to match |
+| `transcriber_igpu.py` | `MODEL_ID` | *(your path)* | Path to CohereASR model |
+| `transcriber_igpu.py` | `LANGUAGE` | `en` | Target language code |
+| `transcriber_igpu.py` | `OV_DEVICE` | `GPU` | OpenVINO device (`GPU`, `CPU`) |
+| `transcriber_npu.py` | `WHISPER_MODEL` | `base` | Whisper model size (`tiny`–`large`) |
+| `transcriber_npu.py` | `LANGUAGE` | `en` | Target language (`None` = auto-detect) |
 
-## Supported languages
-
-100 languages with automatic translation. Speak in any of these and get text output in your configured target language:
-
-Afrikaans, Amharic, Arabic, Assamese, Azerbaijani, Bashkir, Belarusian, Bulgarian, Bengali, Tibetan, Breton, Bosnian, Catalan, Czech, Welsh, Danish, German, Greek, English, Spanish, Estonian, Basque, Persian, Finnish, Faroese, French, Galician, Gujarati, Hausa, Hawaiian, Hebrew, Hindi, Croatian, Haitian Creole, Hungarian, Armenian, Indonesian, Icelandic, Italian, Japanese, Javanese, Georgian, Kazakh, Khmer, Kannada, Korean, Latin, Luxembourgish, Lingala, Lao, Lithuanian, Latvian, Malagasy, Maori, Macedonian, Malayalam, Mongolian, Marathi, Malay, Maltese, Myanmar, Nepali, Dutch, Nynorsk, Norwegian, Occitan, Punjabi, Polish, Pashto, Portuguese, Romanian, Russian, Sanskrit, Sindhi, Sinhala, Slovak, Slovenian, Shona, Somali, Albanian, Serbian, Sundanese, Swedish, Swahili, Tamil, Telugu, Tajik, Thai, Turkmen, Tagalog, Turkish, Tatar, Ukrainian, Urdu, Uzbek, Vietnamese, Yiddish, Yoruba, Cantonese, Chinese.
+---
 
 ## Architecture
 
 ```
-mic.py           — main daemon: state machine, GTK tray icon, evdev hotkey listener,
-                   audio capture via sounddevice, orchestrates everything
-transcriber.py   — NPU whisper engine: loads model, exports encoder to ONNX,
-                   compiles for NPU, runs encoder on NPU + decoder on CPU
-typer.py         — virtual keyboard: types text into focused app via evdev UInput,
-                   layout-aware (currently Dvorak-intl)
-icons/           — tray icon PNGs for each state
+mic.py              Shared orchestrator: GTK tray icon, state machine,
+                    audio capture, evdev key listener.
+                    VoiceTypeDaemon(transcriber_class) accepts any
+                    transcriber with load() / encode() / decode().
+
+mic_igpu.py         Launcher: iGPU mode (CohereASR via OpenVINO)
+mic_npu.py          Launcher: NPU mode (Whisper via OpenVINO)
+
+transcriber_igpu.py CohereASR: Parakeet encoder on iGPU, Cohere decoder
+                    on iGPU. INT4 weight quantization via NNCF.
+transcriber_npu.py  Whisper: encoder on Intel NPU, decoder on CPU.
+
+typer.py            Text injection: sets GTK clipboard, pastes via
+                    xdotool (Ctrl+Shift+V for terminals, Ctrl+V elsewhere).
+
+quantize.py         One-time export script: downloads model, exports
+                    encoder + decoder to OpenVINO INT4.
 ```
+
+---
+
+## Logs
+
+```
+~/.local/share/mic/mic_igpu.log
+~/.local/share/mic/mic_npu.log
+```
+
+---
 
 ## License
 

@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=Mic Voice-to-Type
-Comment=NPU-powered voice dictation daemon
-Exec=/usr/bin/python3 /home/lucas/ai/mic/mic.py
+Comment=Hold Pause to dictate, speech typed into focused app
+Exec=/usr/bin/python3 /home/lucas/ai/mic/mic_igpu.py
 Icon=/home/lucas/ai/mic/icons/ready.png
 Terminal=false
 Categories=Utility;Accessibility;
