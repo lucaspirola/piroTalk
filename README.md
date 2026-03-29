@@ -13,12 +13,12 @@ Runs entirely on local hardware. Two backends available:
 
 ## Requirements
 
-- **OS**: Ubuntu 24.04 (X11 session)
-- **Common**: `xdotool`, `libportaudio2`, `gir1.2-ayatanaappindicator3-0.1`
+- **OS**: Ubuntu 24.04 (Wayland or X11)
+- **Common**: `xdotool`, `wtype`, `libportaudio2`, `gir1.2-ayatanaappindicator3-0.1`
 
 **iGPU mode** additionally requires:
-- Intel integrated GPU (Gen 12+ recommended — Arc, Xe, or recent Core Ultra)
-- OpenVINO 2026+ GPU driver (`intel_gpu` via Mesa or oneAPI)
+- Intel integrated GPU supported by OpenVINO
+- OpenVINO GPU driver (`intel_gpu` via Mesa or oneAPI)
 - ~1.4 GB iGPU VRAM for the INT4 quantized models
 - ~8 GB free disk space to download the model from Hugging Face
 

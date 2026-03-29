@@ -25,7 +25,8 @@ sudo apt-get install -y \
     gir1.2-ayatanaappindicator3-0.1 \
     python3-pip \
     python3-venv \
-    xdotool
+    xdotool \
+    wtype
 
 if [ "$MODE" = "igpu" ]; then
     # iGPU mode: CohereASR in a dedicated virtualenv

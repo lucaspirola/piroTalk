@@ -1,10 +1,13 @@
-"""Type text via GTK clipboard + xdotool paste on X11."""
+"""Type text via GTK clipboard + paste keystroke (X11 and Wayland)."""
+import os
 import subprocess
 import threading
 
 import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gdk, Gtk
+
+_IS_WAYLAND = bool(os.environ.get("WAYLAND_DISPLAY"))
 
 # Window classes that use Ctrl+Shift+V to paste (terminal emulators)
 _TERM_CLASSES = frozenset({
@@ -15,18 +18,25 @@ _TERM_CLASSES = frozenset({
 })
 
 
-def _paste_key():
+def _paste_cmd():
+    """Return the command to send a paste keystroke to the focused window."""
+    # Try xdotool — works on X11 and for XWayland apps on Wayland
     wid = subprocess.run(
         ["xdotool", "getactivewindow"],
         capture_output=True, text=True,
-    ).stdout.strip()
-    # xprop returns: WM_CLASS(STRING) = "instance", "ClassName"
-    out = subprocess.run(
-        ["xprop", "WM_CLASS", "-id", wid],
-        capture_output=True, text=True,
-    ).stdout
-    wclass = out.split('"')[-2].lower() if '"' in out else ""
-    return "ctrl+shift+v" if wclass in _TERM_CLASSES else "ctrl+v"
+    )
+    if wid.returncode == 0 and wid.stdout.strip():
+        # X11 or XWayland: detect terminal class and choose the right shortcut
+        out = subprocess.run(
+            ["xprop", "WM_CLASS", "-id", wid.stdout.strip()],
+            capture_output=True, text=True,
+        ).stdout
+        wclass = out.split('"')[-2].lower() if '"' in out else ""
+        key = "ctrl+shift+v" if wclass in _TERM_CLASSES else "ctrl+v"
+        return ["xdotool", "key", "--clearmodifiers", key]
+
+    # Native Wayland window: fall back to wtype
+    return ["wtype", "-k", "ctrl+v"]
 
 
 class Typer:
@@ -47,10 +57,7 @@ class Typer:
         GLib.idle_add(_set_clipboard)
         done.wait(timeout=2.0)
 
-        subprocess.run(
-            ["xdotool", "key", "--clearmodifiers", _paste_key()],
-            check=False,
-        )
+        subprocess.run(_paste_cmd(), check=False)
 
     def close(self):
         pass
