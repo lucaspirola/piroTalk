@@ -182,6 +182,18 @@ quantize.py         One-time export script: downloads model, exports
 
 ---
 
+## Autostart
+
+To have piroTalk start automatically on login:
+
+```bash
+./autostart.sh           # iGPU (default)
+./autostart.sh --npu     # NPU
+./autostart.sh --remove  # disable autostart
+```
+
+---
+
 ## Logs
 
 ```
